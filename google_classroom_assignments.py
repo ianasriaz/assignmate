@@ -148,7 +148,7 @@ def list_upcoming_assignments(
                     due["month"],
                     due["day"],
                 )
-                due_at = classroom_due_datetime(coursework["dueDate"], coursework.get("dueTime"))
+                due_at = classroom_due_datetime(due_date, coursework.get("dueTime"))
                 if due_at > now:
                     assignments.append(
                         Assignment(
