@@ -31,6 +31,12 @@ def build_html_email(subject: str, body: str) -> str:
                 f'<tr><td colspan="2" class="message">{escape(line)}</td></tr>'
             )
 
+    intro = (
+        "A deadline is coming up. Here are the details you need to plan your next step."
+        if subject.startswith("Deadline ahead")
+        else "A quick look at what is coming up in your Classroom."
+    )
+
     return f"""<!doctype html>
 <html>
 <body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#172033;">
@@ -43,16 +49,15 @@ def build_html_email(subject: str, body: str) -> str:
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-top:0;
                 border-radius:0 0 18px 18px;padding:28px 32px;">
-      <p style="margin:0 0 20px;color:#526071;">
-        Stay ahead of your coursework. Here is your latest assignment update.
-      </p>
+      <p style="margin:0 0 20px;color:#526071;">{escape(intro)}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
              style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;">
         {''.join(rendered_lines)}
       </table>
       <div style="margin-top:24px;padding:14px 16px;background:#fff7e6;
                   border-left:4px solid #f59e0b;color:#7c4a03;">
-        <strong>Tip:</strong> Start early and give yourself time to review your work.
+        <strong>Make it easier on yourself:</strong> Put the first small step on
+        your schedule now, while the deadline is still ahead.
       </div>
     </div>
     <p style="margin:16px 0;text-align:center;font-size:12px;color:#718096;">

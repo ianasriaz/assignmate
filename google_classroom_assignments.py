@@ -181,6 +181,20 @@ def build_three_day_digest(
     )
 
 
+def reminder_message(assignment: Assignment, stage: str) -> tuple[str, str]:
+    """Create concise, human-sounding copy for a staged reminder."""
+    lead_time = {"24-hour": "24 hours", "6-hour": "6 hours", "1-hour": "1 hour"}[stage]
+    subject = f"Deadline ahead: {assignment.title} is due in {lead_time}"
+    body = (
+        f"Course: {assignment.course_name}\n"
+        f"Assignment: {assignment.title}\n"
+        f"Due: {assignment.due_at:%Y-%m-%d %H:%M PKT}\n\n"
+        f"You have about {lead_time} left. A good next step is to open the "
+        "assignment and decide what you can finish first."
+    )
+    return subject, body
+
+
 def send_due_reminders(
     assignments: list[Assignment], sent_file: Path
 ) -> int:
@@ -196,14 +210,8 @@ def send_due_reminders(
             if now >= assignment.due_at or now < reminder_at or key in sent:
                 continue
 
-            send_reminder(
-                f"{stage} reminder: {assignment.title}",
-                (
-                    f"Course: {assignment.course_name}\n"
-                    f"Assignment: {assignment.title}\n"
-                    f"Due: {assignment.due_at:%Y-%m-%d %H:%M PKT}"
-                ),
-            )
+            subject, body = reminder_message(assignment, stage)
+            send_reminder(subject, body)
             sent[key] = now.isoformat()
             sent_count += 1
 
@@ -252,7 +260,16 @@ def main() -> None:
             )
 
     digest = build_three_day_digest(assignments)
-    send_reminder("Google Classroom assignments due soon", digest)
+    due_soon_count = sum(
+        assignment.due_at.date()
+        <= datetime.now(PAKISTAN_TIMEZONE).date() + timedelta(days=3)
+        for assignment in assignments
+    )
+    digest_subject = (
+        f"Your next 3 days: {due_soon_count} assignment"
+        f"{'' if due_soon_count == 1 else 's'} to plan for"
+    )
+    send_reminder(digest_subject, digest)
     sent_count = send_due_reminders(assignments, args.sent_reminders)
     print(f"Reminder digest sent; {sent_count} staged reminder(s) sent.")
 
