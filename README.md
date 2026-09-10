@@ -68,9 +68,11 @@ For every future assignment with a due date, AssignMate can send reminders:
 - 6 hours before the due time
 - 1 hour before the due time
 
-Each message includes the course, assignment, and due time in PKT. Sent stages
-are tracked in the local, ignored `reminders_sent.json` file. Assignments that
-are already past due are skipped.
+Each message includes the course, assignment, and due time in PKT. Classroom
+API times are interpreted as UTC and converted to `Asia/Karachi`; for example,
+Classroom's `18:59` UTC appears as `23:59 PKT`. Coursework without an explicit
+time uses 23:59:59 PKT. Sent stages are tracked in the local, ignored
+`reminders_sent.json` file. Assignments that are already past due are skipped.
 
 ## Security
 

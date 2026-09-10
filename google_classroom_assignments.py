@@ -16,7 +16,7 @@ import argparse
 import json
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -46,6 +46,29 @@ class Assignment:
     due_at: datetime
     course_name: str
     title: str
+
+
+def classroom_due_datetime(
+    due_date: date, due_time: dict[str, int] | None
+) -> datetime:
+    """Convert Classroom's UTC due time to the displayed Pakistan time."""
+    if not due_time:
+        return datetime.combine(
+            due_date,
+            time(23, 59, 59),
+            tzinfo=PAKISTAN_TIMEZONE,
+        )
+
+    due_at_utc = datetime.combine(
+        due_date,
+        time(
+            due_time.get("hours", 0),
+            due_time.get("minutes", 0),
+            due_time.get("seconds", 0),
+        ),
+        tzinfo=UTC,
+    )
+    return due_at_utc.astimezone(PAKISTAN_TIMEZONE)
 
 
 def authenticate(credentials_file: Path, token_file: Path) -> Credentials:
@@ -125,16 +148,7 @@ def list_upcoming_assignments(
                     due["month"],
                     due["day"],
                 )
-                due_time = coursework.get("dueTime", {})
-                due_at = datetime.combine(
-                    due_date,
-                    time(
-                        due_time.get("hours", 23),
-                        due_time.get("minutes", 59),
-                        due_time.get("seconds", 59),
-                    ),
-                    tzinfo=PAKISTAN_TIMEZONE,
-                )
+                due_at = classroom_due_datetime(coursework["dueDate"], coursework.get("dueTime"))
                 if due_at > now:
                     assignments.append(
                         Assignment(
