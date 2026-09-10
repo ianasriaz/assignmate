@@ -30,3 +30,9 @@ def send_reminder(subject: str, body: str) -> None:
     with smtplib.SMTP_SSL(host, port) as smtp:
         smtp.login(username, password)
         smtp.send_message(message)
+
+
+if __name__ == "__main__":
+    from google_classroom_assignments import main
+
+    main()
