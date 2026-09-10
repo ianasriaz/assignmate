@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -36,6 +37,7 @@ DEFAULT_CREDENTIALS_FILE = Path("credentials.json")
 DEFAULT_TOKEN_FILE = Path("token.json")
 DEFAULT_SENT_REMINDERS_FILE = Path("reminders_sent.json")
 REMINDER_STAGES = ((timedelta(hours=24), "24-hour"), (timedelta(hours=6), "6-hour"), (timedelta(hours=1), "1-hour"))
+PAKISTAN_TIMEZONE = ZoneInfo("Asia/Karachi")
 
 
 @dataclass(frozen=True)
@@ -99,7 +101,7 @@ def list_upcoming_assignments(
     classroom: Any, courses: list[dict[str, Any]]
 ) -> list[Assignment]:
     """Return assignments with due dates and times that have not passed."""
-    now = datetime.now().astimezone()
+    now = datetime.now(PAKISTAN_TIMEZONE)
     assignments: list[Assignment] = []
 
     for course in courses:
@@ -131,7 +133,7 @@ def list_upcoming_assignments(
                         due_time.get("minutes", 59),
                         due_time.get("seconds", 59),
                     ),
-                    tzinfo=now.tzinfo,
+                    tzinfo=PAKISTAN_TIMEZONE,
                 )
                 if due_at > now:
                     assignments.append(
@@ -152,7 +154,7 @@ def build_three_day_digest(
     assignments: list[Assignment],
 ) -> str:
     """Build the daily digest for assignments due today through three days from now."""
-    today = date.today()
+    today = datetime.now(PAKISTAN_TIMEZONE).date()
     deadline = today + timedelta(days=3)
     due_soon = [assignment for assignment in assignments if assignment.due_at.date() <= deadline]
 
@@ -169,7 +171,7 @@ def send_due_reminders(
     assignments: list[Assignment], sent_file: Path
 ) -> int:
     """Send each reminder stage once when its scheduled time has arrived."""
-    now = datetime.now().astimezone()
+    now = datetime.now(PAKISTAN_TIMEZONE)
     sent = json.loads(sent_file.read_text(encoding="utf-8")) if sent_file.exists() else {}
     sent_count = 0
 
@@ -185,7 +187,7 @@ def send_due_reminders(
                 (
                     f"Course: {assignment.course_name}\n"
                     f"Assignment: {assignment.title}\n"
-                    f"Due: {assignment.due_at:%Y-%m-%d %H:%M %Z}"
+                    f"Due: {assignment.due_at:%Y-%m-%d %H:%M PKT}"
                 ),
             )
             sent[key] = now.isoformat()
@@ -231,7 +233,7 @@ def main() -> None:
     else:
         for assignment in assignments:
             print(
-                f"- {assignment.due_at:%Y-%m-%d %H:%M %Z} | "
+                f"- {assignment.due_at:%Y-%m-%d %H:%M PKT} | "
                 f"{assignment.course_name} | {assignment.title}"
             )
 
