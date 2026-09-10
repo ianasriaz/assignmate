@@ -12,6 +12,7 @@ jobs:
       contents: read
     env:
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      GOOGLE_TOKEN_JSON: ${{ secrets.GOOGLE_TOKEN_JSON }}
       PURELYMAIL_USER: ${{ secrets.PURELYMAIL_USER }}
       PURELYMAIL_PASS: ${{ secrets.PURELYMAIL_PASS }}
       PURELYMAIL_TO: ${{ secrets.PURELYMAIL_TO }}
@@ -32,6 +33,13 @@ jobs:
         shell: bash
         run: |
           printf '%s' "$GOOGLE_CREDENTIALS_JSON" | base64 --decode > credentials.json
+          printf '%s' "$GOOGLE_TOKEN_JSON" | base64 --decode > token.json
+
+      - name: Verify headless OAuth files
+        shell: bash
+        run: |
+          test -s credentials.json
+          test -s token.json
 
       - name: Run reminders
         run: python reminder.py

@@ -57,6 +57,11 @@ def authenticate(credentials_file: Path, token_file: Path) -> Credentials:
         if credentials and credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
         else:
+            if os.environ.get("CI") == "true":
+                raise RuntimeError(
+                    f"Valid Google OAuth token not found at {token_file}; "
+                    "headless runs require GOOGLE_TOKEN_JSON."
+                )
             if not credentials_file.exists():
                 raise FileNotFoundError(
                     f"Google OAuth client secrets not found: {credentials_file}. "
