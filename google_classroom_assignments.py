@@ -13,6 +13,7 @@ resulting token in ``token.json`` for subsequent runs.
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -25,7 +26,7 @@ from googleapiclient.discovery import build
 
 SCOPES = [
     "https://www.googleapis.com/auth/classroom.courses.readonly",
-    "https://www.googleapis.com/auth/classroom.coursework.students.readonly",
+    "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
 ]
 DEFAULT_CREDENTIALS_FILE = Path("credentials.json")
 DEFAULT_TOKEN_FILE = Path("token.json")
@@ -50,6 +51,8 @@ def authenticate(credentials_file: Path, token_file: Path) -> Credentials:
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(credentials_file), SCOPES
             )
+            # Google may return the equivalent student-submissions scope.
+            os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
             credentials = flow.run_local_server(port=0)
 
         token_file.write_text(credentials.to_json(), encoding="utf-8")
@@ -83,7 +86,6 @@ def list_upcoming_assignments(
     for course in courses:
         request = classroom.courses().courseWork().list(
             courseId=course["id"],
-            courseWorkType="ASSIGNMENT",
             courseWorkStates="PUBLISHED",
             pageSize=100,
         )
@@ -91,6 +93,8 @@ def list_upcoming_assignments(
         while request is not None:
             response = request.execute()
             for coursework in response.get("courseWork", []):
+                if coursework.get("workType") != "ASSIGNMENT":
+                    continue
                 due = coursework.get("dueDate")
                 if not due:
                     continue
