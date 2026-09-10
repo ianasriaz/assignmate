@@ -13,8 +13,10 @@ resulting token in ``token.json`` for subsequent runs.
 from __future__ import annotations
 
 import argparse
+import json
 import os
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,16 @@ SCOPES = [
 ]
 DEFAULT_CREDENTIALS_FILE = Path("credentials.json")
 DEFAULT_TOKEN_FILE = Path("token.json")
+DEFAULT_SENT_REMINDERS_FILE = Path("reminders_sent.json")
+REMINDER_STAGES = ((timedelta(hours=24), "24-hour"), (timedelta(hours=6), "6-hour"), (timedelta(hours=1), "1-hour"))
+
+
+@dataclass(frozen=True)
+class Assignment:
+    id: str
+    due_at: datetime
+    course_name: str
+    title: str
 
 
 def authenticate(credentials_file: Path, token_file: Path) -> Credentials:
@@ -80,10 +92,10 @@ def list_courses(classroom: Any) -> list[dict[str, Any]]:
 
 def list_upcoming_assignments(
     classroom: Any, courses: list[dict[str, Any]]
-) -> list[tuple[date, str, str]]:
-    """Return (due date, course name, assignment title) tuples."""
-    today = date.today()
-    assignments: list[tuple[date, str, str]] = []
+) -> list[Assignment]:
+    """Return assignments with due dates and times that have not passed."""
+    now = datetime.now().astimezone()
+    assignments: list[Assignment] = []
 
     for course in courses:
         request = classroom.courses().courseWork().list(
@@ -106,33 +118,76 @@ def list_upcoming_assignments(
                     due["month"],
                     due["day"],
                 )
-                if due_date >= today:
+                due_time = coursework.get("dueTime", {})
+                due_at = datetime.combine(
+                    due_date,
+                    time(
+                        due_time.get("hours", 23),
+                        due_time.get("minutes", 59),
+                        due_time.get("seconds", 59),
+                    ),
+                    tzinfo=now.tzinfo,
+                )
+                if due_at > now:
                     assignments.append(
-                        (due_date, course.get("name", "Unknown course"), coursework["title"])
+                        Assignment(
+                            coursework["id"],
+                            due_at,
+                            course.get("name", "Unknown course"),
+                            coursework["title"],
+                        )
                     )
 
             request = classroom.courses().courseWork().list_next(request, response)
 
-    return sorted(assignments, key=lambda assignment: (assignment[0], assignment[1], assignment[2]))
+    return sorted(assignments, key=lambda assignment: (assignment.due_at, assignment.course_name, assignment.title))
 
 
 def build_three_day_digest(
-    assignments: list[tuple[date, str, str]],
+    assignments: list[Assignment],
 ) -> str:
     """Build the daily digest for assignments due today through three days from now."""
     today = date.today()
     deadline = today + timedelta(days=3)
-    due_soon = [
-        assignment for assignment in assignments if today <= assignment[0] <= deadline
-    ]
+    due_soon = [assignment for assignment in assignments if assignment.due_at.date() <= deadline]
 
     if not due_soon:
         return "No assignments are due in the next 3 days."
 
     return "\n".join(
-        f"{due_date.isoformat()} | {course_name} | {title}"
-        for due_date, course_name, title in due_soon
+        f"{assignment.due_at:%Y-%m-%d} | {assignment.course_name} | {assignment.title}"
+        for assignment in due_soon
     )
+
+
+def send_due_reminders(
+    assignments: list[Assignment], sent_file: Path
+) -> int:
+    """Send each reminder stage once when its scheduled time has arrived."""
+    now = datetime.now().astimezone()
+    sent = json.loads(sent_file.read_text(encoding="utf-8")) if sent_file.exists() else {}
+    sent_count = 0
+
+    for assignment in assignments:
+        for lead_time, stage in REMINDER_STAGES:
+            reminder_at = assignment.due_at - lead_time
+            key = f"{assignment.id}:{stage}"
+            if now >= assignment.due_at or now < reminder_at or key in sent:
+                continue
+
+            send_reminder(
+                f"{stage} reminder: {assignment.title}",
+                (
+                    f"Course: {assignment.course_name}\n"
+                    f"Assignment: {assignment.title}\n"
+                    f"Due: {assignment.due_at:%Y-%m-%d %H:%M %Z}"
+                ),
+            )
+            sent[key] = now.isoformat()
+            sent_count += 1
+
+    sent_file.write_text(json.dumps(sent, indent=2), encoding="utf-8")
+    return sent_count
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +206,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_TOKEN_FILE,
         help="Path where the OAuth token should be cached.",
     )
+    parser.add_argument(
+        "--sent-reminders",
+        type=Path,
+        default=DEFAULT_SENT_REMINDERS_FILE,
+        help="Path where sent reminder stages should be stored.",
+    )
     return parser.parse_args()
 
 
@@ -163,12 +224,16 @@ def main() -> None:
     if not assignments:
         print("No upcoming assignments.")
     else:
-        for due_date, course_name, title in assignments:
-            print(f"- {due_date.isoformat()} | {course_name} | {title}")
+        for assignment in assignments:
+            print(
+                f"- {assignment.due_at:%Y-%m-%d %H:%M %Z} | "
+                f"{assignment.course_name} | {assignment.title}"
+            )
 
     digest = build_three_day_digest(assignments)
     send_reminder("Google Classroom assignments due soon", digest)
-    print("Reminder email sent.")
+    sent_count = send_due_reminders(assignments, args.sent_reminders)
+    print(f"Reminder digest sent; {sent_count} staged reminder(s) sent.")
 
 
 if __name__ == "__main__":

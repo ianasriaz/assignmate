@@ -9,12 +9,12 @@ from email.message import EmailMessage
 
 def send_reminder(subject: str, body: str) -> None:
     """Send a plain-text reminder using Purelymail credentials from the environment."""
-    username = os.environ.get("PURELYMAIL_USERNAME")
-    password = os.environ.get("PURELYMAIL_PASSWORD")
+    username = os.environ.get("PURELYMAIL_USER")
+    password = os.environ.get("PURELYMAIL_PASS")
     recipient = os.environ.get("PURELYMAIL_TO")
     if not username or not password or not recipient:
         raise RuntimeError(
-            "Set PURELYMAIL_USERNAME, PURELYMAIL_PASSWORD, and PURELYMAIL_TO "
+            "Set PURELYMAIL_USER, PURELYMAIL_PASS, and PURELYMAIL_TO "
             "before sending reminders."
         )
 
