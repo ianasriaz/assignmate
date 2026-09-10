@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import os
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,8 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+
+from reminder import send_reminder
 
 
 SCOPES = [
@@ -114,6 +116,25 @@ def list_upcoming_assignments(
     return sorted(assignments, key=lambda assignment: (assignment[0], assignment[1], assignment[2]))
 
 
+def build_three_day_digest(
+    assignments: list[tuple[date, str, str]],
+) -> str:
+    """Build the daily digest for assignments due today through three days from now."""
+    today = date.today()
+    deadline = today + timedelta(days=3)
+    due_soon = [
+        assignment for assignment in assignments if today <= assignment[0] <= deadline
+    ]
+
+    if not due_soon:
+        return "No assignments are due in the next 3 days."
+
+    return "\n".join(
+        f"{due_date.isoformat()} | {course_name} | {title}"
+        for due_date, course_name, title in due_soon
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Print upcoming Google Classroom assignments."
@@ -141,10 +162,13 @@ def main() -> None:
 
     if not assignments:
         print("No upcoming assignments.")
-        return
+    else:
+        for due_date, course_name, title in assignments:
+            print(f"- {due_date.isoformat()} | {course_name} | {title}")
 
-    for due_date, course_name, title in assignments:
-        print(f"- {due_date.isoformat()} | {course_name} | {title}")
+    digest = build_three_day_digest(assignments)
+    send_reminder("Google Classroom assignments due soon", digest)
+    print("Reminder email sent.")
 
 
 if __name__ == "__main__":
